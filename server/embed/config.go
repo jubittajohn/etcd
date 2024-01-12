@@ -17,6 +17,7 @@ package embed
 import (
 	"crypto/tls"
 	"fmt"
+	"go.etcd.io/etcd/server/v3/etcdserver/api/membership"
 	"io/ioutil"
 	"math"
 	"net"
