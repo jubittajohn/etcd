@@ -105,7 +105,6 @@ function unit_pass {
 
 function integration_extra {
   if [ -z "${PKG}" ] ; then
-    run_for_module "."  go_test "./contrib/raftexample" "keep_going" :  -timeout="${TIMEOUT:-5m}" "${RUN_ARG[@]}" "${COMMON_TEST_FLAGS[@]}" "$@" || return $?
     run_for_module "tests"  go_test "./integration/v2store/..." "keep_going" : -tags v2v3 -timeout="${TIMEOUT:-5m}" "${RUN_ARG[@]}" "${COMMON_TEST_FLAGS[@]}" "$@" || return $?
   else
     log_warning "integration_extra ignored when PKG is specified"
@@ -195,7 +194,17 @@ function functional_pass {
 }
 
 function grpcproxy_pass {
-  run_for_module "tests" go_test "./integration/... ./e2e" "fail_fast" : \
+  grpcproxy_integration_pass "$@"
+  grpcproxy_e2e_pass "$@"
+}
+
+function grpcproxy_integration_pass {
+  run_for_module "tests" go_test "./integration/..." "fail_fast" : \
+      -timeout=45m -tags cluster_proxy "${COMMON_TEST_FLAGS[@]}" "$@"
+}
+
+function grpcproxy_e2e_pass {
+  run_for_module "tests" go_test "./e2e/..." "fail_fast" : \
       -timeout=45m -tags cluster_proxy "${COMMON_TEST_FLAGS[@]}" "$@"
 }
 
@@ -371,28 +380,6 @@ function cov_pass {
 
 ######### Code formatting checkers #############################################
 
-function fmt_pass {
-  toggle_failpoints disable
-
-  # TODO: add "unparam","staticcheck", "unconvert", "ineffasign","nakedret"
-  # after resolving ore-existing errors.
-  # markdown_you  -  too sensitive check was temporarilly disbled. 
-  for p in shellcheck \
-      goword \
-      gofmt \
-      govet \
-      revive \
-      license_header \
-      receiver_name \
-      mod_tidy \
-      dep \
-      shellcheck \
-      shellws \
-      ; do
-    run_pass "${p}" "${@}"
-  done
-}
-
 function shellcheck_pass {
   SHELLCHECK=shellcheck
   
@@ -454,6 +441,10 @@ function markdown_marker_pass {
   if tool_exists "marker" "https://crates.io/crates/marker"; then
     generic_checker run marker --skip-http --root ./Documentation 2>&1
   fi
+}
+
+function govuln_pass {
+  run_for_modules run govulncheck -show verbose
 }
 
 function govet_pass {
@@ -701,9 +692,37 @@ function release_pass {
       ;;
   esac
 
-  tar xzvf "/tmp/$file" -C /tmp/ --strip-components=1
+  tar xzvf "/tmp/$file" -C /tmp/ --strip-components=1 --no-same-owner
   mkdir -p ./bin
   mv /tmp/etcd ./bin/etcd-last-release
+}
+
+function release_tests_pass {
+  if [ -z "${VERSION:-}" ]; then
+    VERSION=$(go list -m go.etcd.io/etcd/api/v3 2>/dev/null | \
+     awk '{split(substr($2,2), a, "."); print a[1]"."a[2]".99"}')
+  fi
+
+  if [ -n "${CI:-}" ]; then
+    git config user.email "prow@etcd.io"
+    git config user.name "Prow"
+
+    gpg --batch --gen-key <<EOF
+%no-protection
+Key-Type: 1
+Key-Length: 2048
+Subkey-Type: 1
+Subkey-Length: 2048
+Name-Real: Prow
+Name-Email: prow@etcd.io
+Expire-Date: 0
+EOF
+
+    git remote add origin https://github.com/etcd-io/etcd.git
+  fi
+
+  DRY_RUN=true run "${ETCD_ROOT_DIR}/scripts/release.sh" --no-upload --no-docker-push --no-gh-release --in-place "${VERSION}"
+  VERSION="${VERSION}" run "${ETCD_ROOT_DIR}/scripts/test_images.sh"
 }
 
 function mod_tidy_for_module {
