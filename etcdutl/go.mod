@@ -1,14 +1,8 @@
 module go.etcd.io/etcd/etcdutl/v3
 
-<<<<<<< HEAD
-go 1.24.0
-
-toolchain go1.24.11
-=======
 go 1.23.0
 
 toolchain go1.23.12
->>>>>>> openshift-4.19
 
 replace (
 	go.etcd.io/etcd/api/v3 => ../api

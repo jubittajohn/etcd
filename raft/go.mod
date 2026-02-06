@@ -1,14 +1,8 @@
 module go.etcd.io/etcd/raft/v3
 
-<<<<<<< HEAD
-go 1.24.0
-
-toolchain go1.24.11
-=======
 go 1.23.0
 
 toolchain go1.23.12
->>>>>>> openshift-4.19
 
 require (
 	github.com/cockroachdb/datadriven v1.0.2
